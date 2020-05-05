@@ -59,7 +59,24 @@ void mono_tracking(const std::shared_ptr<openvslam::config>& cfg, const std::str
         const auto timestamp = std::chrono::duration_cast<std::chrono::duration<double>>(tp_1 - tp_0).count();
 
         // input the current frame and estimate the camera pose
-        SLAM.feed_monocular_frame(cv_bridge::toCvShare(msg, "bgr8")->image, timestamp, mask);
+        //get eigen matrix
+        auto cam_pose_ = SLAM.feed_monocular_frame(cv_bridge::toCvShare(msg, "bgr8")->image, timestamp, mask);
+        //get translation
+        tf::Vector3 origin;
+        origin.setValue(static_cast<double>(cam_pose_(0,3)),static_cast<double>(cam_pose_(1,3)),static_cast<double>(cam_pose_(2,3)));
+        //get rotation
+        tf::Matrix3x3 tf3d;
+        tf3d.setValue(static_cast<double>(cam_pose_(0,0)), static_cast<double>(cam_pose_(0,1)), static_cast<double>(cam_pose_(0,2)), 
+        static_cast<double>(cam_pose_(1,0)), static_cast<double>(cam_pose_(1,1)), static_cast<double>(cam_pose_(1,2)), 
+        static_cast<double>(cam_pose_(2,0)), static_cast<double>(cam_pose_(2,1)), static_cast<double>(cam_pose_(2,2)));
+        tf::Quaternion tfqt;
+        tf3d.getRotation(tfqt);
+        //construct transform
+        tf::Transform transform;
+        transform.setOrigin(origin);
+        transform.setRotation(tfqt);
+        //broadcast transform
+        br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "world", "camera"));
 
         const auto tp_2 = std::chrono::steady_clock::now();
 
